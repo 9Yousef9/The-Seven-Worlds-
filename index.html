@@ -26,7 +26,10 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#000;position:fixe
 #error-screen.on{display:flex}
 #error-screen h2{color:#e63946;font-size:20px}
 #error-screen p{font-size:13px;max-width:500px;line-height:1.6;color:#ffcccc}
-#error-screen code{background:#000;padding:4px 8px;border-radius:4px;font-size:11px;color:#f5c542}
+
+#dbg{position:fixed;bottom:2px;left:50%;transform:translateX(-50%);
+  color:#ff0;font-size:10px;font-family:monospace;z-index:999;
+  background:rgba(0,0,0,.7);padding:2px 8px;border-radius:3px;pointer-events:none}
 
 #topbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;
   justify-content:space-between;align-items:flex-start;padding:6px 8px;pointer-events:none;gap:8px}
@@ -68,7 +71,6 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#000;position:fixe
 .wpn-slot.active{border-color:#f5c542;background:rgba(245,197,66,.2);box-shadow:0 0 10px rgba(245,197,66,.5)}
 .wpn-slot .wpn-name{font-size:8px;font-weight:bold;line-height:1.1}
 .wpn-slot .wpn-icon{font-size:18px;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
-.wpn-slot .ammo{position:absolute;bottom:2px;right:3px;font-size:9px;font-weight:bold;color:#f5c542}
 .wpn-slot .key{position:absolute;top:1px;left:3px;font-size:8px;opacity:.6}
 .wpn-slot.legendary{border-color:#f5c542}
 .wpn-slot.epic{border-color:#9b5de5}
@@ -196,10 +198,11 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#000;position:fixe
 
 <canvas id="game"></canvas>
 
+<div id="dbg">جاري التحميل...</div>
+
 <div id="error-screen">
   <h2>⚠️ خطأ في تشغيل اللعبة</h2>
   <p id="error-msg">جاري التشخيص...</p>
-  <p style="font-size:11px;opacity:.7">المتصفح/التطبيق قد لا يدعم WebGL. جرّب فتح الملف في <b>Chrome</b> أو <b>Firefox</b> بدلًا من محرر النصوص.</p>
   <button class="tbtn" onclick="location.reload()">🔄 إعادة المحاولة</button>
 </div>
 
@@ -302,41 +305,35 @@ html,body{width:100vw;height:100vh;overflow:hidden;background:#000;position:fixe
   <div>جاري التحميل...</div>
 </div>
 
-<!-- Three.js من CDN موثوق - UMD (بدون ES modules) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
 'use strict';
 
-// ============ تشخيص أولي ============
 (function(){
   const diag = document.getElementById('diag');
   const msg = [];
-  msg.push('Three.js: ' + (typeof THREE !== 'undefined' ? '✅ تحميل' : '❌ فشل'));
+  msg.push('Three.js: ' + (typeof THREE !== 'undefined' ? '✅' : '❌'));
   try{
     const test = document.createElement('canvas');
     const gl = test.getContext('webgl') || test.getContext('experimental-webgl');
-    msg.push('WebGL: ' + (gl ? '✅ متاح' : '❌ غير مدعوم'));
-  }catch(e){ msg.push('WebGL: ❌ ' + e.message); }
+    msg.push('WebGL: ' + (gl ? '✅' : '❌'));
+  }catch(e){ msg.push('WebGL: ❌'); }
   diag.textContent = msg.join(' | ');
   
   if(typeof THREE === 'undefined'){
-    document.getElementById('error-msg').textContent = 'فشل تحميل مكتبة Three.js — تحقق من الاتصال بالإنترنت.';
+    document.getElementById('error-msg').textContent = 'فشل تحميل Three.js — تحقق من الإنترنت.';
     document.getElementById('error-screen').classList.add('on');
   }
 })();
 
-// ============ فحص WebGL ============
 function checkWebGL(){
   try{
     const c = document.createElement('canvas');
-    const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-    if(!gl) return false;
-    return true;
+    return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
   }catch(e){ return false; }
 }
 
-// ============ حالة اللعبة ============
 const G = {
   running:false, paused:false,
   scene:null, camera:null, renderer:null,
@@ -344,7 +341,7 @@ const G = {
   enemies:[], arrows:[], particles:[], buildings:[], herbs:[], drops:[],
   worldGroup:null,
   map:{size:110, bounds:90},
-  camera:{yaw:0, pitch:-0.15, dist:6},
+  camera:{yaw:0, pitch:-0.35, dist:7},
   input:{forward:0, right:0, attack:false, block:false},
   joy:{jx:0, jy:0},
   clock:null,
@@ -360,20 +357,17 @@ const G = {
   swordMesh:null, shieldMesh:null, bowMesh:null
 };
 
-// ============ الأسلحة ============
 const WEAPONS = {
   wood_sword:{id:'wood_sword', name:'سيف خشبي', icon:'🗡️', type:'sword', rarity:'common', damage:15, range:2.8, arc:1.4, speed:0.5},
   iron_sword:{id:'iron_sword', name:'سيف حديدي', icon:'⚔️', type:'sword', rarity:'common', damage:28, range:3.0, arc:1.5, speed:0.45},
   fire_sword:{id:'fire_sword', name:'سيف النار', icon:'🔥', type:'sword', rarity:'rare', damage:45, range:3.2, arc:1.6, speed:0.4, particles:'#ff6b35'},
   ice_sword:{id:'ice_sword', name:'سيف الجليد', icon:'❄️', type:'sword', rarity:'rare', damage:52, range:3.2, arc:1.6, speed:0.45, particles:'#7fb3ff'},
   royal_sword:{id:'royal_sword', name:'السيف الملكي', icon:'👑', type:'sword', rarity:'legendary', damage:105, range:3.6, arc:1.8, speed:0.35, particles:'#fff3a0'},
-  dawn_sword:{id:'dawn_sword', name:'سيف الفجر', icon:'🌅', type:'sword', rarity:'legendary', damage:150, range:3.8, arc:1.9, speed:0.32, particles:'#ffd700'},
   training_dagger:{id:'training_dagger', name:'خنجر', icon:'🔪', type:'dagger', rarity:'common', damage:12, range:1.8, arc:1.2, speed:0.22},
   shadow_dagger:{id:'shadow_dagger', name:'خنجر الظلال', icon:'🔪', type:'dagger', rarity:'epic', damage:55, range:2.2, arc:1.4, speed:0.16, particles:'#9b5de5'},
   wood_bow:{id:'wood_bow', name:'قوس خشبي', icon:'🏹', type:'bow', rarity:'common', damage:22, range:60, speed:0.65, arrows:20, maxArrows:20, projectileSpeed:35},
   forest_bow:{id:'forest_bow', name:'قوس الغابة', icon:'🏹', type:'bow', rarity:'rare', damage:35, range:70, speed:0.6, arrows:25, maxArrows:25, projectileSpeed:40},
-  frost_bow:{id:'frost_bow', name:'قوس الصقيع', icon:'🏹', type:'bow', rarity:'rare', damage:48, range:75, speed:0.62, arrows:25, maxArrows:25, projectileSpeed:42, particles:'#7fb3ff'},
-  light_bow:{id:'light_bow', name:'قوس النور', icon:'🏹', type:'bow', rarity:'legendary', damage:88, range:90, speed:0.55, arrows:30, maxArrows:30, projectileSpeed:50, particles:'#fff3a0'}
+  frost_bow:{id:'frost_bow', name:'قوس الصقيع', icon:'🏹', type:'bow', rarity:'rare', damage:48, range:75, speed:0.62, arrows:25, maxArrows:25, projectileSpeed:42, particles:'#7fb3ff'}
 };
 
 const ITEMS = {
@@ -389,29 +383,28 @@ const ITEMS = {
 };
 
 const WORLDS = [
-  {id:1,name:'وادي الفجر',icon:'🌲',start:1,end:15,sky:0x87ceeb,ground:0x4a7c3a,fog:0x87ceeb,
+  {id:1,name:'وادي الفجر',icon:'🌲',start:1,end:15,sky:0x87ceeb,ground:0x4a7c3a,
    buildingColors:[0xd4b8a0,0xc9a88f],roofColors:[0x8b4513,0x654321],enemyColor:0x8b2c2c,enemyKind:'wolf',enemyName:'ذئب'},
-  {id:2,name:'صحراء السراب',icon:'🌵',start:16,end:30,sky:0xf5c542,ground:0xc9a86a,fog:0xf5d488,
+  {id:2,name:'صحراء السراب',icon:'🌵',start:16,end:30,sky:0xf5c542,ground:0xc9a86a,
    buildingColors:[0xd4b88a,0xe0c49a],roofColors:[0x8b6b3a,0x6b4b1a],enemyColor:0xb35c2e,enemyKind:'scorpion',enemyName:'عقرب'},
-  {id:3,name:'مملكة الصقيع',icon:'❄️',start:31,end:45,sky:0xb0d8f0,ground:0xd8e8f0,fog:0xd0e8f5,
+  {id:3,name:'مملكة الصقيع',icon:'❄️',start:31,end:45,sky:0xb0d8f0,ground:0xd8e8f0,
    buildingColors:[0xa8c0d0,0x90a8b8],roofColors:[0x5a7a8a,0x3a5a6a],enemyColor:0x4a90e2,enemyKind:'golem',enemyName:'غولم جليدي'},
-  {id:4,name:'أعماق المرجان',icon:'🌊',start:46,end:60,sky:0x1a5a7a,ground:0x2a6a5a,fog:0x1a5a7a,
+  {id:4,name:'أعماق المرجان',icon:'🌊',start:46,end:60,sky:0x1a5a7a,ground:0x2a6a5a,
    buildingColors:[0x8ac0b0,0x6aa090],roofColors:[0x3a6a5a,0x2a4a3a],enemyColor:0x2e8b7a,enemyKind:'crab',enemyName:'سلطعون'},
-  {id:5,name:'جبال اللهب',icon:'🔥',start:61,end:75,sky:0x8b1a1a,ground:0x4a2010,fog:0x8b1a1a,
+  {id:5,name:'جبال اللهب',icon:'🔥',start:61,end:75,sky:0x8b1a1a,ground:0x4a2010,
    buildingColors:[0x6a3a20,0x5a2a10],roofColors:[0x3a1a0a,0x2a0a00],enemyColor:0xd4502c,enemyKind:'flame',enemyName:'وحش الحمم'},
-  {id:6,name:'المملكة القديمة',icon:'🏰',start:76,end:90,sky:0x4a3a6a,ground:0x5a4a3a,fog:0x4a3a6a,
+  {id:6,name:'المملكة القديمة',icon:'🏰',start:76,end:90,sky:0x4a3a6a,ground:0x5a4a3a,
    buildingColors:[0xa09080,0x908070],roofColors:[0x5a4a3a,0x4a3a2a],enemyColor:0x8b6bc9,enemyKind:'knight',enemyName:'فارس مظلم'},
-  {id:7,name:'مملكة الظلال',icon:'🌑',start:91,end:95,sky:0x1a0530,ground:0x2a1a3a,fog:0x1a0530,
+  {id:7,name:'مملكة الظلال',icon:'🌑',start:91,end:95,sky:0x1a0530,ground:0x2a1a3a,
    buildingColors:[0x3a2a4a,0x2a1a3a],roofColors:[0x1a0a2a,0x0a0515],enemyColor:0x9b5de5,enemyKind:'shadow',enemyName:'فارس الظلال'}
 ];
 
 const STAGE_NAMES = ['يوم تعارفنا','الضوء الأسود','أول مهمة','غابة الأوراق','القطة الضائعة','الكهف القديم','الرمز','ليلة غير عادية','الحداد','حارس الغابة','طريق النهر','الرسالة القديمة','القرية في خطر','برج الرياح','أورين زعيم الغابة','الطريق إلى الصحراء','مدينة السراب','لصوص الرمال','الجمل الضائع','سوق الصحراء','العاصفة الرملية','معبد الشمس','لغز المرايا','المدينة المدفونة','حارس الرمال','النفق السري','الرمز الثاني','سباق الصحراء','واحة الليل','زاروك ملك السراب','البوابة الجليدية','مدينة الثلج','البلورة الزرقاء','الغابة المتجمدة','آثار الأقدام','البحيرة المجمدة','لغز الانعكاسات','القرية المحاصرة','كهف البلورات','حارس الجليد','القصر المتجمد','سر البلورة','الرمز الثالث','ليلة الثلج','فروستار ملك الصقيع','الغواصة','مدينة المرجان','سوق المرجان','السمكة المشاغبة','الأنقاض الغارقة','لغز التيارات','الكهف الأزرق','إنقاذ الحراس','القصر البحري','وحش الأعماق','المكتبة الغارقة','الكتاب المفقود','الرمز الرابع','المدينة تحت الهجوم','مارينوس حارس الأعماق','الجبل البركاني','مدينة الجمر','متجر النار','منجم البلورات','الحداد الأسطوري','سلاح النار','الرمز الخامس','طريق الحمم','قرية العمال','إنقاذ المنجم','الوحش البركاني','قلعة اللهب','بوابة التنين','التنين القديم','فولكان سيد اللهب','العاصمة','المكتبة الملكية','سجلات الماضي','المدينة المهجورة','القلعة القديمة','الغرفة السرية','حقيقة الرموز','الخريطة المفقودة','الحقيقة الأولى','الطريق إلى الظلام','الحراس القدماء','البوابة السوداء','الحرب','سقوط المملكة','أركان فارس العرش','مدينة الليل','جميع الرموز','الحقيقة الكاملة','المعركة الأخيرة','نِهراس سيد الفراغ'];
 
 function getWorld(stage){
-  return WORLDS.find(w => stage >= w.start && stage <= w.end) || WORLDS[0];
+  return WORLDS.find(function(w){ return stage >= w.start && stage <= w.end; }) || WORLDS[0];
 }
 
-// ============ الشخصية ============
 function createCharacter(charId){
   const group = new THREE.Group();
   const isYousef = charId === 'yousef';
@@ -486,13 +479,11 @@ function createCharacter(charId){
   group.add(bowGroup);
   G.bowMesh = bowGroup;
 
-  // Cape
   box(0.5, 0.8, 0.05, accentColor, 0, 1.15, -0.18);
 
   return group;
 }
 
-// ============ الوحوش ============
 function createEnemyModel(kind, color){
   const group = new THREE.Group();
   const mat = new THREE.MeshLambertMaterial({color});
@@ -545,7 +536,8 @@ function createEnemyModel(kind, color){
     const body = add(new THREE.SphereGeometry(0.7, 8, 6), mat, 0, 0.5, 0);
     body.scale.set(1, 0.6, 0.9);
     const eyeMat = new THREE.MeshBasicMaterial({color: 0xffff00});
-    for(const sx of [-0.25, 0.25]){
+    for(let i = 0; i < 2; i++){
+      const sx = i === 0 ? -0.25 : 0.25;
       add(new THREE.CylinderGeometry(0.04, 0.04, 0.4, 6), mat, sx, 0.9, 0.4);
       add(new THREE.SphereGeometry(0.08, 6, 6), eyeMat, sx, 1.15, 0.4);
     }
@@ -558,12 +550,12 @@ function createEnemyModel(kind, color){
     }
   }
   else if(kind === 'flame'){
-    const bodyMat = new THREE.MeshBasicMaterial({color: 0xff6b35, transparent: true, opacity: 0.9});
+    const bodyMat = new THREE.MeshBasicMaterial({color: 0xff6b35});
     add(new THREE.SphereGeometry(0.55, 8, 8), bodyMat, 0, 1, 0);
     add(new THREE.SphereGeometry(0.35, 8, 8), new THREE.MeshBasicMaterial({color: 0xffcc00}), 0, 1, 0);
     for(let i = 0; i < 5; i++){
       add(new THREE.ConeGeometry(0.15, 0.6, 6),
-        new THREE.MeshBasicMaterial({color: 0xffaa00, transparent: true, opacity: 0.85}),
+        new THREE.MeshBasicMaterial({color: 0xffaa00}),
         (Math.random()-0.5)*0.5, 1.6+Math.random()*0.2, (Math.random()-0.5)*0.5);
     }
     const eyeMat = new THREE.MeshBasicMaterial({color: 0xffffff});
@@ -581,7 +573,7 @@ function createEnemyModel(kind, color){
     add(new THREE.BoxGeometry(0.18, 0.6, 0.18), darkMat, 0.13, 0.6, 0);
   }
   else {
-    const bodyMat = new THREE.MeshBasicMaterial({color, transparent: true, opacity: 0.7});
+    const bodyMat = new THREE.MeshBasicMaterial({color: color});
     add(new THREE.SphereGeometry(0.6, 8, 8), bodyMat, 0, 1.2, 0);
     add(new THREE.SphereGeometry(0.3, 8, 8), new THREE.MeshBasicMaterial({color: 0x000000}), 0, 1.85, 0);
     const eyeMat = new THREE.MeshBasicMaterial({color: 0xff0000});
@@ -589,7 +581,6 @@ function createEnemyModel(kind, color){
     add(new THREE.SphereGeometry(0.06, 6, 6), eyeMat, 0.12, 1.9, 0.25);
   }
   
-  // HP bar
   const hpCanvas = document.createElement('canvas');
   hpCanvas.width = 64; hpCanvas.height = 8;
   const hpTex = new THREE.CanvasTexture(hpCanvas);
@@ -615,7 +606,6 @@ function drawEnemyHP(enemy){
   enemy.model.userData.hpTex.needsUpdate = true;
 }
 
-// ============ بناء العالم ============
 function buildWorld(){
   const world = getWorld(G.stage);
   const scene = G.scene;
@@ -625,7 +615,7 @@ function buildWorld(){
     G.worldGroup.traverse(function(o){
       if(o.geometry) o.geometry.dispose();
       if(o.material){
-        if(Array.isArray(o.material)) o.material.forEach(function(m){m.dispose();});
+        if(Array.isArray(o.material)) o.material.forEach(function(m){ m.dispose(); });
         else o.material.dispose();
       }
     });
@@ -638,13 +628,16 @@ function buildWorld(){
   
   const size = G.map.size;
   
+  // الأرض
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
     new THREE.MeshLambertMaterial({color: world.ground})
   );
   ground.rotation.x = -Math.PI / 2;
+  ground.position.y = 0;
   group.add(ground);
   
+  // الطرق
   const pathMat = new THREE.MeshLambertMaterial({color: 0x8a6b4a});
   const path1 = new THREE.Mesh(new THREE.PlaneGeometry(size, 6), pathMat);
   path1.rotation.x = -Math.PI / 2;
@@ -655,6 +648,7 @@ function buildWorld(){
   path2.position.y = 0.02;
   group.add(path2);
   
+  // المباني
   const buildingPositions = [
     [-22, -22, 12, 10, 7], [22, -22, 14, 10, 9],
     [-22, 22, 10, 12, 6], [22, 22, 12, 12, 8],
@@ -687,19 +681,9 @@ function buildWorld(){
     );
     roof.position.set(x, h + 0.2, z);
     group.add(roof);
-    
-    const windowMat = new THREE.MeshBasicMaterial({color: 0xffcc66, transparent: true, opacity: 0.8});
-    const floors = Math.floor(h / 3);
-    for(let f = 0; f < floors; f++){
-      for(let wx = -w/2 + 1.5; wx < w/2 - 1; wx += 2.5){
-        const win = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 1), windowMat);
-        win.position.set(x + wx, 1.5 + f * 3, z + d/2 + 0.01);
-        group.add(win);
-      }
-    }
   });
   
-  // Trees
+  // الأشجار
   const trunkMat = new THREE.MeshLambertMaterial({color: 0x5a3a20});
   const leafColors = {
     '1': [0x2a6a2a, 0x1a5a1a], '2': [0x8a7a3a, 0x6a5a2a],
@@ -740,7 +724,7 @@ function buildWorld(){
     G.buildings.push(leaves1);
   }
   
-  // Rocks
+  // الصخور
   const rockMat = new THREE.MeshLambertMaterial({color: 0x6a6a6a});
   for(let i = 0; i < 20; i++){
     const ang = Math.random() * Math.PI * 2;
@@ -756,7 +740,7 @@ function buildWorld(){
     G.buildings.push(rock);
   }
   
-  // Herbs
+  // الأعشاب
   const herbTypes = ['herb', 'red_herb', 'blue_herb', 'mushroom', 'berry'];
   for(let i = 0; i < 15; i++){
     const ang = Math.random() * Math.PI * 2;
@@ -771,7 +755,7 @@ function buildWorld(){
     herbGroup.position.set(x, 0, z);
     
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 8),
-      new THREE.MeshBasicMaterial({color: 0x44ff88, transparent: true, opacity: 0.3}));
+      new THREE.MeshBasicMaterial({color: 0x44ff88}));
     glow.position.y = 0.4;
     herbGroup.add(glow);
     
@@ -790,10 +774,10 @@ function buildWorld(){
     herbGroup.add(stem);
     
     group.add(herbGroup);
-    G.herbs.push({model: herbGroup, kind: herbKind, x, z, bob: Math.random() * Math.PI * 2});
+    G.herbs.push({model: herbGroup, kind: herbKind, x: x, z: z, bob: Math.random() * Math.PI * 2});
   }
   
-  // Torches
+  // المشاعل
   const poleMat = new THREE.MeshLambertMaterial({color: 0x4a3a2a});
   const torchMat = new THREE.MeshBasicMaterial({color: 0xff9944});
   const torchPositions = [
@@ -813,11 +797,12 @@ function buildWorld(){
   });
   
   scene.add(group);
-  scene.fog = new THREE.Fog(world.fog, 45, 130);
+  
+  // ✅ إزالة الضباب تمامًا
+  scene.fog = null;
   scene.background = new THREE.Color(world.sky);
 }
 
-// ============ توليد الأعداء ============
 function spawnEnemies(){
   G.enemies.forEach(function(e){ if(e.model) G.scene.remove(e.model); });
   G.enemies = [];
@@ -873,7 +858,6 @@ function spawnEnemies(){
   updateKillsUI();
 }
 
-// ============ هجوم ============
 function meleeAttack(){
   const w = WEAPONS[G.currentWeapon];
   if(w.type !== 'sword' && w.type !== 'dagger') return;
@@ -1038,7 +1022,6 @@ function killEnemy(enemy){
   saveGame(true);
 }
 
-// ============ مؤثرات ============
 function spawnSwingParticles(){
   const facing = G.playerModel.rotation.y;
   const px = G.player.x, pz = G.player.z;
@@ -1112,7 +1095,7 @@ function spawnFloatingDamage(pos, amount, color){
   ctx.fillText(amount, 64, 32);
   
   const tex = new THREE.CanvasTexture(canvas);
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false}));
   sprite.position.copy(pos);
   sprite.position.y += 2.2;
   sprite.scale.set(1.5, 0.75, 1);
@@ -1121,7 +1104,6 @@ function spawnFloatingDamage(pos, amount, color){
   G.particles.push({obj: sprite, life: 1.0, maxLife: 1.0, vy: 1.8});
 }
 
-// ============ تحديث الأعداء ============
 function updateEnemies(dt){
   const px = G.player.x, pz = G.player.z;
   
@@ -1130,16 +1112,12 @@ function updateEnemies(dt){
     const dz = pz - enemy.z;
     const dist = Math.hypot(dx, dz);
     
-    if(enemy.hitFlash > 0){
-      enemy.hitFlash -= dt;
-    }
+    if(enemy.hitFlash > 0) enemy.hitFlash -= dt;
     
     enemy.bob += dt * 4;
     enemy.model.position.y = Math.sin(enemy.bob) * 0.05;
     
-    if(dist > 0.5){
-      enemy.model.rotation.y = Math.atan2(dx, dz);
-    }
+    if(dist > 0.5) enemy.model.rotation.y = Math.atan2(dx, dz);
     
     if(dist < 2) enemy.state = 'attack';
     else if(dist < 22) enemy.state = 'chase';
@@ -1251,7 +1229,6 @@ function playerDied(){
   }, 2500);
 }
 
-// ============ تحديث اللاعب ============
 function updatePlayer(dt){
   if(!G.player) return;
   
@@ -1390,23 +1367,21 @@ function useItem(key){
   renderItemPanel();
 }
 
-// ============ الكاميرا ============
 function updateCamera(){
   const cam = G.camera;
-  const targetY = 1.6;
-  const dist = G.input.block ? 5 : cam.dist;
+  const targetY = 1.2;
+  const dist = G.input.block ? 4 : 5.5;
   const yaw = cam.yaw;
   const pitch = cam.pitch;
   
   const camX = G.player.x + Math.sin(yaw) * Math.cos(pitch) * dist;
-  const camY = targetY - Math.sin(pitch) * dist;
+  const camY = targetY + 1.2 - Math.sin(pitch) * dist;
   const camZ = G.player.z + Math.cos(yaw) * Math.cos(pitch) * dist;
   
-  G.camera.position.set(camX, camY, camZ);
+  G.camera.position.set(camX, Math.max(0.8, camY), camZ);
   G.camera.lookAt(G.player.x, targetY, G.player.z);
 }
 
-// ============ الحلقة ============
 function gameLoop(){
   if(!G.running) return;
   requestAnimationFrame(gameLoop);
@@ -1422,7 +1397,22 @@ function gameLoop(){
     updateMinimap();
   }
   
-  G.renderer.render(G.scene, G.camera);
+  try{
+    G.renderer.render(G.scene, G.camera);
+  }catch(err){
+    console.error('Render error:', err);
+  }
+  
+  // معلومات تشخيصية
+  const info = G.renderer.info;
+  const dbgEl = document.getElementById('dbg');
+  if(dbgEl){
+    dbgEl.textContent = 'Obj:' + G.scene.children.length + 
+      ' | Draws:' + info.render.calls + 
+      ' | Tris:' + info.render.triangles +
+      ' | Enemies:' + G.enemies.length +
+      ' | XP:' + G.stats.xp;
+  }
 }
 
 function updateParticles(dt){
@@ -1435,10 +1425,6 @@ function updateParticles(dt){
       p.obj.position.y += (p.vy || 0) * dt;
       p.obj.position.z += p.vz * dt;
       p.vy = (p.vy || 0) - 9.8 * dt * 0.5;
-    }
-    
-    if(p.obj.material && p.obj.material.opacity !== undefined && p.life < 0.5){
-      p.obj.material.opacity = Math.max(0, p.life / p.maxLife);
     }
     
     if(p.life <= 0){
@@ -1468,13 +1454,12 @@ function nextStage(){
   saveGame(true);
 }
 
-// ============ الحفظ ============
-const SAVE_KEY = 'afterdark_webview_v1';
+const SAVE_KEY = 'afterdark_webview_v2';
 
 function saveGame(silent){
   try{
     localStorage.setItem(SAVE_KEY, JSON.stringify({
-      version: 1, savedAt: Date.now(),
+      version: 2, savedAt: Date.now(),
       stage: G.stage, world: G.world,
       stats: G.stats, inventory: G.inventory,
       characterId: G.characterId
@@ -1495,7 +1480,6 @@ window.addEventListener('beforeunload', function(){ if(G.running) saveGame(true)
 document.addEventListener('visibilitychange', function(){ if(document.hidden && G.running) saveGame(true); });
 setInterval(function(){ if(G.running) saveGame(true); }, 20000);
 
-// ============ واجهة ============
 function updateHealthUI(){
   const pct = (G.stats.hp / G.stats.hpMax) * 100;
   document.getElementById('hp-fill').style.width = Math.max(0, pct) + '%';
@@ -1614,7 +1598,6 @@ function renderItemPanel(){
 window.useItem = useItem;
 window.closeItems = function(){ document.getElementById('item-panel').classList.remove('on'); };
 
-// Minimap
 const minimapCv = document.getElementById('minimap-cv');
 const mmCtx = minimapCv ? minimapCv.getContext('2d') : null;
 
@@ -1667,7 +1650,6 @@ function updateMinimap(){
   mmCtx.stroke();
 }
 
-// ============ الإدخال ============
 function setupInput(){
   const keys = {};
   window.addEventListener('keydown', function(e){
@@ -1717,7 +1699,6 @@ function setupInput(){
     }
   });
   
-  // Joystick
   const joyL = document.getElementById('joy-left');
   const knobL = joyL.querySelector('.knob');
   let joyActive = false;
@@ -1760,7 +1741,6 @@ function setupInput(){
     knobL.style.transform = 'translate(-50%,-50%)';
   }, {passive:false});
   
-  // Look
   let lookActive = false, lastX = 0, lastY = 0;
   canvas.addEventListener('touchstart', function(e){
     for(let i = 0; i < e.touches.length; i++){
@@ -1790,7 +1770,6 @@ function setupInput(){
   }, {passive:false});
   canvas.addEventListener('touchend', function(){ lookActive = false; }, {passive:true});
   
-  // Fire
   const btnFire = document.getElementById('btn-fire');
   const attackStart = function(e){ e.preventDefault(); G.input.attack = true; };
   const attackEnd = function(e){ e.preventDefault(); G.input.attack = false; };
@@ -1799,7 +1778,6 @@ function setupInput(){
   btnFire.addEventListener('mousedown', attackStart);
   btnFire.addEventListener('mouseup', attackEnd);
   
-  // Block
   const btnBlock = document.getElementById('btn-block');
   const blockStart = function(e){ e.preventDefault(); G.input.block = true; btnBlock.classList.add('active'); };
   const blockEnd = function(e){ e.preventDefault(); G.input.block = false; btnBlock.classList.remove('active'); };
@@ -1841,7 +1819,6 @@ function toggleItemPanel(){
   if(el.classList.contains('on')) renderItemPanel();
 }
 
-// ============ إعداد ============
 function initThree(){
   const canvas = document.getElementById('game');
   
@@ -1853,27 +1830,43 @@ function initThree(){
   
   const w = window.innerWidth;
   const h = window.innerHeight;
-  G.renderer.setSize(w, h);
-  G.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  G.renderer.setSize(w, h, false);
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
+  G.renderer.setPixelRatio(1);
+  G.renderer.setClearColor(0x87ceeb, 1);
   
   G.scene = new THREE.Scene();
-  G.camera = new THREE.PerspectiveCamera(65, w / h, 0.1, 500);
+  G.camera = new THREE.PerspectiveCamera(70, w / h, 0.1, 400);
   G.camera.position.set(0, 3, 6);
   
-  G.scene.add(new THREE.HemisphereLight(0xffffff, 0x555544, 0.9));
+  // 💡 إضاءة قوية جدًا
+  const amb = new THREE.AmbientLight(0xffffff, 2.5);
+  G.scene.add(amb);
   
-  const dir = new THREE.DirectionalLight(0xffffff, 0.85);
-  dir.position.set(30, 60, 20);
-  G.scene.add(dir);
+  const dir1 = new THREE.DirectionalLight(0xffffff, 1.5);
+  dir1.position.set(20, 40, 20);
+  G.scene.add(dir1);
   
-  G.scene.add(new THREE.AmbientLight(0x505050, 0.4));
+  const dir2 = new THREE.DirectionalLight(0xffffff, 1.0);
+  dir2.position.set(-20, 30, -20);
+  G.scene.add(dir2);
+  
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x88aa88, 1.5);
+  G.scene.add(hemi);
   
   window.addEventListener('resize', function(){
     const w2 = window.innerWidth;
     const h2 = window.innerHeight;
     G.camera.aspect = w2 / h2;
     G.camera.updateProjectionMatrix();
-    G.renderer.setSize(w2, h2);
+    G.renderer.setSize(w2, h2, false);
+    canvas.width = w2;
+    canvas.height = h2;
+    canvas.style.width = w2 + 'px';
+    canvas.style.height = h2 + 'px';
   });
   
   checkOrientation();
@@ -1890,9 +1883,7 @@ function checkOrientation(){
   }
 }
 
-// ============ بدء ============
 window.startGame = function(charId){
-  // فحص المتصفح أولًا
   if(typeof THREE === 'undefined'){
     document.getElementById('error-msg').textContent = 'مكتبة Three.js لم تُحمَّل — تحقق من الإنترنت.';
     document.getElementById('error-screen').classList.add('on');
@@ -1900,7 +1891,7 @@ window.startGame = function(charId){
   }
   
   if(!checkWebGL()){
-    document.getElementById('error-msg').textContent = 'متصفحك لا يدعم WebGL — اللعبة تحتاج متصفح حديث (Chrome / Firefox).';
+    document.getElementById('error-msg').textContent = 'متصفحك لا يدعم WebGL.';
     document.getElementById('error-screen').classList.add('on');
     return;
   }
@@ -1983,4 +1974,4 @@ if(existingSave){
 
 </script>
 </body>
-</html>
+  </html>
